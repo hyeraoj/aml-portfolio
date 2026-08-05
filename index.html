@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AML 혈액세포 판독 보조 시스템</title>
+<meta name="description" content="말초혈액도말 세포 15종을 딥러닝으로 분류하고 Grad-CAM·LLM으로 판단 근거를 설명하는 웹 서비스. 데이터 전처리부터 모델 학습, 설명가능성, 클라우드 배포까지 전 과정을 설계·구현했다.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%2314532d'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23f2f4ef'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f2f4ef;
+    --bg-card:#ffffff;
+    --bg-alt:#e9ede3;
+    --ink:#16211b;
+    --ink-muted:#4b5b50;
+    --accent:#1f6b3d;
+    --accent-deep:#14532d;
+    --accent-soft:#dbe6dd;
+    --amber:#8f6a26;
+    --amber-soft:#f1e6cf;
+    --border:#d6ddd2;
+    --shadow:rgba(22,33,27,0.10);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#10150f;
+      --bg-card:#182019;
+      --bg-alt:#1a2318;
+      --ink:#eef1ea;
+      --ink-muted:#a9b6ac;
+      --accent:#5cb885;
+      --accent-deep:#3f9463;
+      --accent-soft:#213326;
+      --amber:#d29a4e;
+      --amber-soft:#332812;
+      --border:#2a352c;
+      --shadow:rgba(0,0,0,0.45);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#10150f; --bg-card:#182019; --bg-alt:#1a2318; --ink:#eef1ea; --ink-muted:#a9b6ac;
+    --accent:#5cb885; --accent-deep:#3f9463; --accent-soft:#213326; --amber:#d29a4e; --amber-soft:#332812;
+    --border:#2a352c; --shadow:rgba(0,0,0,0.45);
+  }
+  :root[data-theme="light"]{
+    --bg:#f2f4ef; --bg-card:#ffffff; --bg-alt:#e9ede3; --ink:#16211b; --ink-muted:#4b5b50;
+    --accent:#1f6b3d; --accent-deep:#14532d; --accent-soft:#dbe6dd; --amber:#8f6a26; --amber-soft:#f1e6cf;
+    --border:#d6ddd2; --shadow:rgba(22,33,27,0.10);
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans KR','Malgun Gothic',sans-serif;
+    line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  img{max-width:100%; display:block;}
+  a{color:inherit;}
+  h1,h2,h3{font-family:'Nanum Myeongjo',serif; font-weight:800; text-wrap:balance; margin:0;}
+  .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.78rem;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin:0 0 0.8rem;
+    font-weight:600;
+  }
+
+  /* header */
+  .site-header{
+    position:sticky; top:0; z-index:20;
+    background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--border);
+  }
+  .header-inner{
+    max-width:1180px; margin:0 auto; padding:0.9rem 1.5rem;
+    display:flex; align-items:center; gap:1.5rem;
+  }
+  .brand{
+    font-family:'Nanum Myeongjo',serif; font-weight:700; font-size:1.02rem;
+    text-decoration:none; white-space:nowrap;
+  }
+  .site-nav{
+    display:flex; gap:1.4rem; overflow-x:auto; flex:1;
+    font-size:0.92rem; scrollbar-width:none;
+  }
+  .site-nav::-webkit-scrollbar{display:none;}
+  .site-nav a{text-decoration:none; color:var(--ink-muted); white-space:nowrap; transition:color .15s;}
+  .site-nav a:hover{color:var(--accent);}
+  .header-github{
+    text-decoration:none; font-size:0.88rem; font-weight:600;
+    white-space:nowrap; border:1px solid var(--border); border-radius:3px;
+    padding:0.4rem 0.7rem; transition:border-color .15s, color .15s;
+  }
+  .header-github:hover{border-color:var(--accent); color:var(--accent);}
+
+  /* hero */
+  .hero{padding:4.5rem 1.5rem 3.5rem;}
+  .hero-inner{
+    max-width:1180px; margin:0 auto;
+    display:grid; grid-template-columns:1.05fr 0.95fr; gap:3.5rem; align-items:center;
+  }
+  .hero-sub{
+    font-size:1.08rem; color:var(--ink-muted); max-width:46ch; margin:1.3rem 0 0;
+  }
+  h1{font-size:clamp(2.1rem, 4.4vw, 3.3rem); line-height:1.16; letter-spacing:-0.01em;}
+  .hero-stats{
+    display:flex; flex-wrap:wrap; gap:1.8rem;
+    margin:2.1rem 0 2.2rem;
+    padding-top:1.6rem; border-top:1px solid var(--border);
+  }
+  .stat{display:flex; flex-direction:column;}
+  .stat-num{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:1.5rem; font-variant-numeric:tabular-nums;}
+  .stat-label{font-size:0.78rem; color:var(--ink-muted); margin-top:0.15rem;}
+  .hero-cta{display:flex; flex-wrap:wrap; gap:0.8rem; margin-bottom:1rem;}
+  .btn{
+    text-decoration:none; font-weight:600; font-size:0.92rem;
+    padding:0.75rem 1.3rem; border-radius:3px; border:1px solid transparent;
+    transition:transform .15s, box-shadow .15s, background .15s, border-color .15s;
+    display:inline-flex; align-items:center; gap:0.4rem;
+  }
+  .btn-primary{background:var(--accent-deep); color:#f6f8f3;}
+  .btn-primary:hover{background:var(--accent); transform:translateY(-1px); box-shadow:0 6px 16px var(--shadow);}
+  .btn-ghost{border-color:var(--border); color:var(--ink);}
+  .btn-ghost:hover{border-color:var(--accent); color:var(--accent); transform:translateY(-1px);}
+  .hero-note{font-size:0.82rem; color:var(--ink-muted); max-width:52ch; margin:0;}
+
+  .hero-figure{margin:0; border:1px solid var(--border); background:var(--bg-card); border-radius:4px; overflow:hidden; box-shadow:0 12px 32px var(--shadow);}
+  .hero-figure img{width:100%; height:auto;}
+  figcaption{
+    font-family:'IBM Plex Mono',monospace; font-size:0.76rem; color:var(--ink-muted);
+    padding:0.7rem 0.9rem; border-top:1px solid var(--border);
+  }
+  figcaption .tag{color:var(--accent); font-weight:600; margin-right:0.4em;}
+
+  /* sections */
+  .section{padding:5rem 1.5rem;}
+  .section.alt{background:var(--bg-alt);}
+  .section-inner{max-width:1180px; margin:0 auto;}
+  .section h2{font-size:clamp(1.55rem,2.6vw,2.05rem); line-height:1.32; max-width:26ch;}
+  .section-lede{font-size:1.02rem; color:var(--ink-muted); max-width:68ch; margin:1rem 0 2.6rem;}
+
+  /* overview */
+  .overview-grid{display:grid; grid-template-columns:1.2fr 0.8fr; gap:3rem; align-items:start;}
+  .overview-text p{color:var(--ink-muted); max-width:62ch;}
+  .pillars{list-style:none; margin:1.8rem 0 0; padding:0; display:grid; gap:0.9rem;}
+  .pillars li{
+    padding-left:0; color:var(--ink-muted); font-size:0.96rem;
+    border-top:1px solid var(--border); padding-top:0.9rem;
+  }
+  .pillar-label{
+    display:block; font-family:'IBM Plex Mono',monospace; font-size:0.76rem;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--ink); font-weight:600; margin-bottom:0.3rem;
+  }
+  .insight-box{
+    background:var(--bg-card); border:1px solid var(--border); border-left:3px solid var(--accent-deep);
+    border-radius:3px; padding:1.8rem; position:sticky; top:5.5rem;
+  }
+  .insight-eyebrow{font-family:'IBM Plex Mono',monospace; font-size:0.76rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--amber); font-weight:600; margin:0 0 0.9rem;}
+  .insight-quote{font-family:'Nanum Myeongjo',serif; font-size:1.2rem; font-weight:700; line-height:1.5; margin:0 0 1rem;}
+  .insight-body{font-size:0.9rem; color:var(--ink-muted); margin:0;}
+
+  /* metrics table */
+  .metrics-table-wrap{overflow-x:auto; margin-bottom:2.6rem; border:1px solid var(--border); border-radius:4px;}
+  .metrics-table{width:100%; border-collapse:collapse; font-size:0.94rem; background:var(--bg-card);}
+  .metrics-table th, .metrics-table td{padding:0.85rem 1.1rem; text-align:left; border-bottom:1px solid var(--border);}
+  .metrics-table th{font-family:'IBM Plex Mono',monospace; font-size:0.75rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-muted); font-weight:600;}
+  .metrics-table td:not(:first-child){font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;}
+  .metrics-table tr:last-child td{border-bottom:none;}
+  .metrics-table tr.highlight{background:var(--accent-soft);}
+  .tag-final{
+    display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:0.68rem; font-weight:600;
+    background:var(--accent-deep); color:#f6f8f3; padding:0.15rem 0.5rem; border-radius:2px; margin-left:0.6rem; letter-spacing:0.03em;
+  }
+
+  .figure-grid{display:grid; gap:1.6rem; margin-bottom:2.6rem;}
+  .figure-grid.two-col{grid-template-columns:1fr 1fr;}
+  .slide{margin:0; border:1px solid var(--border); border-radius:4px; overflow:hidden; background:var(--bg-card);}
+  .slide img{width:100%; height:auto;}
+
+  .gradcam-block{display:grid; grid-template-columns:0.85fr 1.15fr; gap:2.4rem; align-items:center;}
+  .gradcam-text h3{font-size:1.2rem; margin-bottom:0.8rem;}
+  .gradcam-text p{color:var(--ink-muted); margin:0; font-size:0.96rem;}
+
+  /* system architecture */
+  .arch-figures{display:grid; grid-template-columns:1fr 1fr; gap:1.6rem; margin-bottom:3.2rem;}
+  .screens-grid{display:grid; grid-template-columns:1fr 1fr; gap:1.6rem;}
+  .screens-grid figcaption{font-weight:500;}
+
+  /* deploy */
+  .deploy-grid{display:grid; grid-template-columns:1fr 1fr; gap:3rem; align-items:center;}
+  .deploy-text p{color:var(--ink-muted); max-width:56ch;}
+  .deploy-list{list-style:none; padding:0; margin:1.6rem 0 0; display:grid; gap:0.7rem; font-size:0.92rem;}
+  .deploy-list li{padding-left:1.3rem; position:relative; color:var(--ink-muted);}
+  .deploy-list li::before{content:"→"; position:absolute; left:0; color:var(--accent);}
+  .deploy-list strong{color:var(--ink);}
+
+  /* limits */
+  .limits-grid{display:grid; grid-template-columns:1fr 1fr; gap:1.6rem; margin-bottom:3rem;}
+  .limit-card{
+    background:var(--bg-card); border:1px solid var(--border); border-radius:4px; padding:1.8rem;
+    border-top:3px solid var(--amber);
+  }
+  .limit-card h3{font-size:1.08rem; margin-bottom:0.8rem; line-height:1.4;}
+  .limit-card p{color:var(--ink-muted); font-size:0.93rem; margin:0;}
+
+  .roadmap h3{font-family:'IBM Plex Sans KR',sans-serif; font-weight:600; font-size:1rem; letter-spacing:0.02em; margin-bottom:1.2rem; color:var(--ink-muted); text-transform:uppercase; font-size:0.8rem;}
+  .roadmap-list{list-style:none; counter-reset:step; padding:0; margin:0; display:grid; gap:0; border-top:1px solid var(--border);}
+  .roadmap-list li{
+    counter-increment:step; padding:1.1rem 0; border-bottom:1px solid var(--border);
+    display:grid; grid-template-columns:2.6rem 1fr; gap:1rem; align-items:baseline;
+  }
+  .roadmap-list li::before{
+    content:counter(step,decimal-leading-zero); font-family:'IBM Plex Mono',monospace; color:var(--accent); font-weight:600; font-size:0.85rem;
+  }
+  .roadmap-list strong{display:block; margin-bottom:0.2rem;}
+  .roadmap-list span{color:var(--ink-muted); font-size:0.92rem;}
+
+  /* footer */
+  footer{padding:3.2rem 1.5rem 3rem; border-top:1px solid var(--border);}
+  .footer-inner{max-width:1180px; margin:0 auto;}
+  .stack-chips{display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:2rem;}
+  .chip{
+    font-family:'IBM Plex Mono',monospace; font-size:0.76rem; padding:0.3rem 0.65rem;
+    border:1px solid var(--border); border-radius:12px; color:var(--ink-muted);
+  }
+  .footer-row{display:flex; flex-wrap:wrap; justify-content:space-between; gap:1rem; font-size:0.85rem; color:var(--ink-muted);}
+  .footer-row a{text-decoration:none; color:var(--ink-muted); border-bottom:1px solid var(--border);}
+  .footer-row a:hover{color:var(--accent); border-color:var(--accent);}
+
+  .reveal{opacity:0; transform:translateY(14px); transition:opacity .6s ease, transform .6s ease;}
+  .reveal.in{opacity:1; transform:none;}
+  @media (prefers-reduced-motion: reduce){
+    .reveal{opacity:1; transform:none; transition:none;}
+    html{scroll-behavior:auto;}
+  }
+
+  @media (max-width: 920px){
+    .hero-inner, .overview-grid, .gradcam-block, .deploy-grid{grid-template-columns:1fr;}
+    .figure-grid.two-col, .arch-figures, .screens-grid, .limits-grid{grid-template-columns:1fr;}
+    .insight-box{position:static;}
+    .roadmap-list li{grid-template-columns:2rem 1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href="#top">AML 세포 판독 보조</a>
+    <nav class="site-nav">
+      <a href="#overview">개요</a>
+      <a href="#performance">모델 성능</a>
+      <a href="#system">시스템 설계</a>
+      <a href="#deploy">배포</a>
+      <a href="#limits">한계와 다음</a>
+    </nav>
+    <a class="header-github" href="https://github.com/hyeraoj/aml" target="_blank" rel="noopener">GitHub ↗</a>
+  </div>
+</header>
+
+<section class="hero" id="top">
+  <div class="hero-inner">
+    <div class="hero-text reveal">
+      <p class="eyebrow">Explainable AI · 혈액세포 형태학적 분류</p>
+      <h1>AML 혈액세포<br>판독 보조 시스템</h1>
+      <p class="hero-sub">말초혈액도말 세포 15종을 딥러닝으로 분류하고, Grad-CAM과 LLM으로 판단 근거까지 설명하는 웹 서비스. 데이터 전처리부터 모델 학습, 설명가능성, CI/CD 자동배포까지 전 과정을 설계·구현했다.</p>
+
+      <div class="hero-stats">
+        <div class="stat"><span class="stat-num">15</span><span class="stat-label">분류 클래스</span></div>
+        <div class="stat"><span class="stat-num">18,365</span><span class="stat-label">원본 이미지</span></div>
+        <div class="stat"><span class="stat-num">771:1</span><span class="stat-label">최대 클래스 불균형</span></div>
+        <div class="stat"><span class="stat-num">0.90</span><span class="stat-label">Test Accuracy</span></div>
+      </div>
+
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="https://aml-hyeraoj.duckdns.org" target="_blank" rel="noopener">라이브 데모 열기 ↗</a>
+        <a class="btn btn-ghost" href="https://github.com/hyeraoj/aml" target="_blank" rel="noopener">GitHub 저장소</a>
+        <a class="btn btn-ghost" href="AML_최종보고서.pdf" target="_blank" rel="noopener">최종보고서 PDF</a>
+      </div>
+      <p class="hero-note">주의 — 데모는 학습용 소규모 서버(1/8 OCPU · 1GB RAM)에서 상시 구동 중입니다. 트래픽이 몰리면 응답이 느려질 수 있고, 실제 의료 진단 목적으로 만들어진 시스템이 아닙니다.</p>
+    </div>
+
+    <figure class="hero-figure reveal">
+      <img src="images/03_class_samples_grid.png" alt="AML-Cytomorphology_LMU 데이터셋의 15개 세포 클래스 샘플 그리드">
+      <figcaption><span class="tag">Fig.</span>AML-Cytomorphology_LMU · 15클래스 세포 샘플</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="overview" class="section">
+  <div class="section-inner overview-grid">
+    <div class="overview-text reveal">
+      <h2>병리사의 육안 판독을 보조하는 설명 가능한 시스템</h2>
+      <p>급성골수성백혈병(AML) 진단 과정에서 말초혈액도말 세포를 형태학적으로 분류하는 작업은 지금도 숙련된 병리사의 육안 판독에 크게 의존한다. CellaVision 같은 상용 시스템이 이미 이 병목을 완화하고 있지만, CNN 기반 분류기의 판단 근거를 사람이 이해하기 어렵다는 '블랙박스' 문제는 여전히 임상 도입의 걸림돌로 남아 있다.</p>
+      <p>이 프로젝트는 정확도 경쟁이 아니라 <strong>"왜 그렇게 판단했는가"</strong>를 확인할 수 있는 시스템을 목표로 했다. 예측 확률뿐 아니라 Grad-CAM 히트맵으로 모델이 이미지의 어느 영역을 근거로 판단했는지 시각화하고, RAG 기반 LLM이 그 판단을 자연어로 설명한다.</p>
+
+      <ul class="pillars">
+        <li><span class="pillar-label">분류 성능</span>전이학습(EfficientNetB0)으로 클래스당 표본이 적고 불균형이 심한 데이터에서도 준수한 성능을 확보했다.</li>
+        <li><span class="pillar-label">판단 근거 제시</span>Grad-CAM으로 모델이 실제로 주목한 영역을 이미지 위에 직접 확인할 수 있게 했다.</li>
+        <li><span class="pillar-label">설명 가능성</span>클래스별 형태학적 지식베이스를 조회하는 RAG 방식으로 LLM의 근거 없는 서술(hallucination)을 억제했다.</li>
+        <li><span class="pillar-label">실제 서비스화</span>FastAPI+Spring Boot를 CI/CD 파이프라인으로 클라우드에 배포해 HTTPS로 상시 서비스했다.</li>
+      </ul>
+    </div>
+
+    <aside class="insight-box reveal">
+      <p class="insight-eyebrow">핵심 통찰</p>
+      <p class="insight-quote">"집계 지표가 좋아졌다고, 실제 판단 근거까지 개선됐다고 보장할 수 없다."</p>
+      <p class="insight-body">파인튜닝 버전(macro F1 0.48)이 대표 모델(v2, 0.46)보다 지표는 더 높았다. 하지만 Grad-CAM으로 판단 근거를 재검증한 결과, 가장 위험했던 고확신 오답의 근거는 두 모델이 사실상 동일했다. 그래서 최종 대표 모델은 요약 지표가 아니라 이 정성적 재검증을 근거로 v2를 그대로 유지했다.</p>
+    </aside>
+  </div>
+</section>
+
+<section id="performance" class="section alt">
+  <div class="section-inner">
+    <p class="eyebrow reveal">모델 개발</p>
+    <h2 class="reveal">ML 베이스라인부터 파인튜닝까지, 지표만으로 판단하지 않았다</h2>
+    <p class="section-lede reveal">RandomForest·SVM·LogisticRegression 베이스라인에서 시작해 EfficientNetB0 전이학습, 클래스 불균형 대응(class_weight·증강), 상위 레이어 파인튜닝까지 단계적으로 비교했다. 매 단계 Grad-CAM으로 판단 근거를 재검증해 지표 개선이 실제 개선인지 확인하는 과정을 반복했다.</p>
+
+    <div class="metrics-table-wrap reveal">
+      <table class="metrics-table">
+        <thead><tr><th>단계</th><th>Accuracy</th><th>Macro F1</th><th>Weighted F1</th></tr></thead>
+        <tbody>
+          <tr><td>ML 베이스라인 — LogisticRegression</td><td>0.8552</td><td>0.3552</td><td>0.8467</td></tr>
+          <tr><td>DL v1 — EfficientNetB0 (보정 없음)</td><td>0.93</td><td>0.39</td><td>0.92</td></tr>
+          <tr class="highlight"><td>DL v2 — class_weight + 정규화<span class="tag-final">최종 대표 모델</span></td><td>0.90</td><td>0.46</td><td>0.91</td></tr>
+          <tr><td>DL v3 — v2 + 희귀 클래스 증강</td><td>0.88</td><td>0.44</td><td>0.89</td></tr>
+          <tr><td>파인튜닝 wide (지표만 최고)</td><td>0.8973</td><td>0.48</td><td>0.91</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="figure-grid two-col reveal">
+      <figure class="slide">
+        <img src="images/04_version_comparison.png" alt="모델 버전별 성능 비교 막대그래프">
+        <figcaption>모델 버전별 성능 비교</figcaption>
+      </figure>
+      <figure class="slide">
+        <img src="images/04_per_class_f1.png" alt="클래스별 F1 스코어 막대그래프">
+        <figcaption>클래스별 F1 — 표본이 적을수록 낮음</figcaption>
+      </figure>
+    </div>
+
+    <div class="gradcam-block reveal">
+      <figure class="slide">
+        <img src="images/04_gradcam_mob_mon.png" alt="Grad-CAM 히트맵 — MOB를 MON으로 오분류한 사례">
+        <figcaption>Grad-CAM — 고확신 오답 사례</figcaption>
+      </figure>
+      <div class="gradcam-text">
+        <h3>집계 지표에 안 보이는 위험, MON 쏠림</h3>
+        <p>서로 다른 실제 클래스가 공통적으로 MON(단핵구) 쪽으로 쏠리는 고확신 오답이 반복 재현됐다 — MOB→MON 96~97%, MYO→MON 93.8%, BAS→MON 87.3%. macro F1 같은 요약 지표는 이런 "특정 클래스로의 쏠림"을 직접 드러내지 않는다. 정분류 사례는 대체로 형태학적 정의 특징(분엽핵, smudge 텍스처 등)에 정확히 집중하는 것과 뚜렷이 대조된다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="system" class="section">
+  <div class="section-inner">
+    <p class="eyebrow reveal">시스템 설계</p>
+    <h2 class="reveal">FastAPI·Spring Boot 이중 구조와 4종 화면</h2>
+    <p class="section-lede reveal">Spring Boot(화면·이력·오케스트레이션)와 FastAPI(추론·Grad-CAM·LLM 설명)를 nginx 리버스프록시로 묶었다. 브라우저는 nginx만 바라보고, 요청은 Spring Boot → FastAPI 순으로 넘어간다. LLM 설명은 Ollama(로컬)를 먼저 시도하고 실패하면 Gemini API로 자동 폴백한다.</p>
+
+    <div class="arch-figures reveal">
+      <figure class="slide">
+        <img src="images/05_architecture_dev.png" alt="개발 환경(Dev) 전체 아키텍처 다이어그램">
+        <figcaption>개발 환경(Dev) 아키텍처</figcaption>
+      </figure>
+      <figure class="slide">
+        <img src="images/07_architecture_ops.png" alt="운영 환경(Ops, 오라클 클라우드) 전체 아키텍처 다이어그램">
+        <figcaption>운영 환경(Ops) 아키텍처 — 오라클 클라우드</figcaption>
+      </figure>
+    </div>
+
+    <div class="screens-grid reveal">
+      <figure class="slide">
+        <img src="images/05_screen_diagnose_result.png" alt="판독 결과 화면 — 원본 이미지, Grad-CAM 히트맵, top-k 확률, LLM 설명">
+        <figcaption>판독 결과 — 원본·Grad-CAM·확률·LLM 설명</figcaption>
+      </figure>
+      <figure class="slide">
+        <img src="images/05_screen_history.png" alt="판독 이력 화면 — 클래스별 통계, 검색/필터, 이력 표">
+        <figcaption>판독 이력 — 통계·검색/필터</figcaption>
+      </figure>
+      <figure class="slide">
+        <img src="images/05_screen_about.png" alt="모델/성과 소개 화면">
+        <figcaption>모델/성과 소개</figcaption>
+      </figure>
+      <figure class="slide">
+        <img src="images/05_screen_batch_result.png" alt="배치 업로드 판독 결과 화면">
+        <figcaption>배치 업로드 — 여러 장 동시 판독</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="deploy" class="section alt">
+  <div class="section-inner deploy-grid">
+    <div class="deploy-text reveal">
+      <p class="eyebrow">배포 자동화</p>
+      <h2>코드 푸시 한 번으로 클라우드까지</h2>
+      <p>Jenkins가 GitHub push를 감지해 빌드하고 GHCR(GitHub Container Registry)에 이미지를 올리면, 오라클 클라우드 VM의 Watchtower가 새 이미지를 감지해 자동으로 재기동한다. 학습된 모델 파일은 이미지에 함께 굽지 않고, 컨테이너가 시작될 때 DVC로 DagsHub에서 직접 받아온다 — git 커밋과 배포된 모델 버전이 체크섬으로 항상 1:1 연결된다.</p>
+      <ul class="deploy-list">
+        <li><strong>CI/CD</strong> — Jenkins → GHCR → Watchtower 자동 배포</li>
+        <li><strong>모델 버전관리</strong> — DVC + DagsHub, 컨테이너 시작 시 런타임 fetch</li>
+        <li><strong>인프라</strong> — Oracle Cloud VM(E2.1.Micro) + Docker Compose + nginx</li>
+        <li><strong>HTTPS</strong> — Let's Encrypt, cron 기반 자동 갱신(하루 2회 점검)</li>
+      </ul>
+    </div>
+    <figure class="slide reveal">
+      <img src="images/07_cicd_sequence.png" alt="CI/CD 파이프라인 시퀀스 다이어그램">
+      <figcaption>CI/CD 파이프라인 — push부터 재기동까지</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="limits" class="section">
+  <div class="section-inner">
+    <p class="eyebrow reveal">한계와 다음 단계</p>
+    <h2 class="reveal">정직하게 그은 경계</h2>
+    <p class="section-lede reveal">시스템을 "완결된 도구"로 부풀리기보다, 실제 임상 파이프라인의 어느 단계까지가 이 시스템의 범위이고 어디부터 빠져 있는지를 정확히 아는 것이 더 신뢰할 수 있는 결과물이라고 판단했다.</p>
+
+    <div class="limits-grid reveal">
+      <div class="limit-card">
+        <h3>① "이미지 1장 = 세포 1개" 전제</h3>
+        <p>분류 모델은 업로드 이미지 전체를 벡터 하나로 뭉쳐 클래스 하나만 예측하는 구조라, 세포가 여러 개 섞인 원본 도말 이미지는 다루지 못한다. CellaVision 같은 상용 시스템도 저배율 검출 → 고배율 개별 세포 촬영이라는 별도 단계를 거친 뒤에야 분류기에 넣는다 — 이 시스템은 그 파이프라인의 "검출 다음 단계"(분류+설명)만 담당한다.</p>
+      </div>
+      <div class="limit-card">
+        <h3>② 폐쇄형 15클래스 분류기의 OOD 취약성</h3>
+        <p>softmax 기반 15클래스 분류기는 입력이 어떤 클래스에도 속하지 않아도 "모름(unknown)"을 답할 방법이 구조적으로 없다. 실제로 대상 외 저화질 이미지를 넣었더니 77.4% 확신도로 오분류됐다 — "확실히 맞음"과 "대상 외 입력이라 억지로 끼워맞춤"이 확신도 숫자만으로는 구분되지 않는다.</p>
+      </div>
+    </div>
+
+    <div class="roadmap reveal">
+      <h3>다음 단계 과제</h3>
+      <ol class="roadmap-list">
+        <li><span><strong>세포 검출/분할 단계 추가</strong> — 원본 도말 이미지에서 개별 세포를 먼저 찾아내는 전처리 단계를 붙여 "1장=1개" 전제를 없앤다.</span></li>
+        <li><span><strong>OOD(대상 외 입력) 탐지</strong> — 확신도만으로 구분되지 않는 분포 밖 입력을 별도로 걸러내는 장치를 추가한다.</span></li>
+        <li><span><strong>MLL23 병합을 통한 희귀 클래스 보강</strong> — 조사만 마치고 보류한 말초혈액 희귀클래스 데이터를 실제로 병합해 극소 클래스 성능을 보강한다.</span></li>
+        <li><span><strong>FastAPI 추론 구조 개선</strong> — backbone과 head가 분리된 현재 2단계 파이프라인을 정리한다.</span></li>
+        <li><span><strong>Grad-CAM 요약을 LLM 설명에 반영</strong> — 히트맵이 어디에 집중했는지를 LLM 설명 문장에 함께 반영한다.</span></li>
+        <li><span><strong>지식베이스에 "모세포 여부" 뱃지 추가</strong> — 임상적으로 더 의미 있는 정보를 지식베이스 응답에 덧붙인다.</span></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="stack-chips">
+      <span class="chip">Python 3.11</span>
+      <span class="chip">TensorFlow / Keras</span>
+      <span class="chip">EfficientNetB0</span>
+      <span class="chip">scikit-learn</span>
+      <span class="chip">MLflow</span>
+      <span class="chip">FastAPI</span>
+      <span class="chip">Java 17 / Spring Boot</span>
+      <span class="chip">MariaDB</span>
+      <span class="chip">Ollama · Gemini API</span>
+      <span class="chip">Docker Compose</span>
+      <span class="chip">Jenkins · GHCR · Watchtower</span>
+      <span class="chip">DVC · DagsHub</span>
+      <span class="chip">nginx · Let's Encrypt</span>
+      <span class="chip">Oracle Cloud</span>
+    </div>
+    <div class="footer-row">
+      <span>AML 혈액세포 형태학적 분류 시스템 — 개인 프로젝트, 2026</span>
+      <span>
+        <a href="https://github.com/hyeraoj/aml" target="_blank" rel="noopener">GitHub</a>
+        &nbsp;·&nbsp;
+        <a href="https://aml-hyeraoj.duckdns.org" target="_blank" rel="noopener">라이브 데모</a>
+        &nbsp;·&nbsp;
+        <a href="AML_최종보고서.pdf" target="_blank" rel="noopener">최종보고서</a>
+      </span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    var els = document.querySelectorAll('.reveal');
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, {threshold:0.12});
+    els.forEach(function(el){ io.observe(el); });
+  } else {
+    document.querySelectorAll('.reveal').forEach(function(el){ el.classList.add('in'); });
+  }
+</script>
+
+</body>
+</html>
